@@ -49,27 +49,50 @@ func NewCPU(code []byte) *CPU {
 //
 // see: https://book.rvemu.app/hardware-components/01-cpu.html#fetch-stage
 func (c *CPU) Fetch() uint32 {
-	index := c.pc
-	return binary.LittleEndian.Uint32(c.dram[index : index+4])
+	current := c.pc
+	c.pc += 4
+	return binary.LittleEndian.Uint32(c.dram[current:c.pc])
 }
 
-// Execute performs the action required by the instruction.
-func (c *CPU) Execute(inst uint32) {
-	opcode := inst & 0x7f
-
+func (c *CPU) Decode(rawInst uint32) *Instruction {
 	// 2.2 Base Instruction Formats
 	//
 	// The RISC-V ISA keeps the source (rs1 and rs2) and destination (rd) registers
 	// at the same position
-	rd := (inst >> 7) & 0x1f
-	rs1 := (inst >> 15) & 0x1f
-	rs2 := (inst >> 20) & 0x1f
+	return &Instruction{
+		raw:    rawInst,
+		opcode: rawInst & 0x7f,         // bits 0 to 6
+		rd:     (rawInst >> 7) & 0x1f,  // bits 7 to 11
+		funct3: (rawInst >> 12) & 0x1f, // bits 12 to 14
+		rs1:    (rawInst >> 15) & 0x1f, // bits 15 to 19
+		rs2:    (rawInst >> 20) & 0x1f, // bits 20 to 24
+		funct7: (rawInst >> 20) & 0x1f, // bits 25 to 31
+	}
+}
 
+type Instruction struct {
+	raw    uint32
+	opcode uint32
+	rd     uint32
+	funct3 uint32
+	rs1    uint32
+	rs2    uint32
+	funct7 uint32
+}
+
+// Execute performs the action required by the instruction.
+func (c *CPU) Execute(inst *Instruction) {
 	c.xregs[0] = 0
 
+	opcode := inst.opcode
+	rd := inst.rd
+	rs1 := inst.rs1
+	rs2 := inst.rs2
+
+	// Chapter 19 RV32/64G Instruction Set Listings
 	switch opcode {
-	case 0x13: // addi
-		imm := (inst & 0xfff00000) >> 20
+	case 0b0010011: // addi
+		imm := (inst.raw & 0xfff00000) >> 20
 		c.xregs[rd] = c.xregs[rs1] | uint64(imm)
 	case 0x33: // add
 		c.xregs[rd] = c.xregs[rs1] + uint64(c.xregs[rs2])
@@ -98,4 +121,10 @@ func (c *CPU) DumpRegisters() {
 		)
 	}
 	fmt.Println(buf.String())
+}
+
+// SignedExtend assumes value to be bits length and sign extends to 32 bit
+func SignExtend(value, bitSize uint32) int32 {
+	tmp := 32 - bitSize
+	return int32(value) << tmp >> tmp
 }
