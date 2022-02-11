@@ -3,25 +3,12 @@ package riscv
 import (
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/olekukonko/tablewriter"
 )
 
-// Fetch-decode-execute Cycle
-//
-// Running image
-// ```
-// while cpu.pc < cpu.dram.len() as u64 {
-// 	// 1. Fetch.
-// 	let inst = cpu.fetch();
-//
-// 	// 2. Add 4 to the program counter.
-// 	cpu.pc = cpu.pc + 4;
-//
-// 	// 3. Decode.
-// 	// 4. Execute.
-// 	cpu.execute(inst);
-// }
-// ```
 type CPU struct {
 	// 32 64-bit integer registers.
 	// RV32I, RV64I
@@ -42,6 +29,17 @@ func NewCPU(code []byte) *CPU {
 		xregs: regs,
 		pc:    0,
 		dram:  code,
+	}
+}
+
+func (c *CPU) Run() {
+	for c.pc < uint64(len(c.dram)) {
+		// 1. Fetch.
+		inst := c.Fetch()
+		// 2. Decode.
+		decoded := c.Decode(inst)
+		// 3. Execute.
+		c.Execute(decoded)
 	}
 }
 
@@ -103,23 +101,24 @@ func (c *CPU) Execute(inst *Instruction) {
 }
 
 func (c *CPU) DumpRegisters() {
-	abi := []string{
-		"zero", " ra ", " sp ", " gp ", " tp ", " t0 ", " t1 ", " t2 ", " s0 ", " s1 ", " a0 ",
-		" a1 ", " a2 ", " a3 ", " a4 ", " a5 ", " a6 ", " a7 ", " s2 ", " s3 ", " s4 ", " s5 ",
-		" s6 ", " s7 ", " s8 ", " s9 ", " s10", " s11", " t3 ", " t4 ", " t5 ", " t6 ",
-	}
-
 	var buf strings.Builder
-	// 32 for 32-bit. x0-x31
-	for i := 0; i < 32; i += 4 {
-		fmt.Fprintf(&buf,
-			"x%02d(%s) = 0x%08x  x%02d(%s) = 0x%08x  x%02d(%s) = 0x%08x  x%02d(%s) = 0x%08x \n",
-			i, abi[i], c.xregs[i],
-			i+1, abi[i+1], c.xregs[i+1],
-			i+2, abi[i+2], c.xregs[i+2],
-			i+3, abi[i+3], c.xregs[i+3],
-		)
+	table := tablewriter.NewWriter(&buf)
+	table.SetHeader([]string{
+		"Register",
+		"Decimal",
+		"Hex",
+		"Binary",
+	})
+
+	for i, xreg := range c.xregs {
+		table.Append([]string{
+			xregsABINames[i],
+			strconv.FormatUint(xreg, 10),
+			fmt.Sprintf("0x%08x", xreg),
+			fmt.Sprintf("0b%032b", xreg),
+		})
 	}
+	table.Render()
 	fmt.Println(buf.String())
 }
 

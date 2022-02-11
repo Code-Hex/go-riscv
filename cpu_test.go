@@ -4,24 +4,47 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestCPU(t *testing.T) {
-	code, err := os.ReadFile("testdata/add-addi.bin")
-	if err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		name      string
+		wantXregs [32]uint64
+	}{
+		{
+			name: "add-addi",
+			wantXregs: [32]uint64{
+				2:  dramSize,
+				29: 5,
+				30: 37,
+				31: 42,
+			},
+		},
 	}
-	cpu := NewCPU(code)
-	for cpu.pc < uint64(len(cpu.dram)) {
-		// 1. Fetch.
-		inst := cpu.Fetch()
-		// 2. Decode.
-		decoded := cpu.Decode(inst)
-		// 3. Execute.
-		cpu.Execute(decoded)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			filename := filepath.Join("testdata", tc.name+".bin")
+			code, err := os.ReadFile(filename)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cpu := NewCPU(code)
+			cpu.Run()
+
+			// if tc.name == "want" {
+			// 	cpu.DumpRegisters()
+			// }
+
+			if diff := cmp.Diff(tc.wantXregs, cpu.xregs); diff != "" {
+				t.Fatalf("(-want, +got)\n%s", diff)
+			}
+		})
 	}
-	cpu.DumpRegisters()
 }
 
 func TestSignExtend(t *testing.T) {
