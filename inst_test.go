@@ -241,18 +241,10 @@ func Test_detectInstructionFormat(t *testing.T) {
 			want: RType,
 		},
 		{
-			name: "fence",
+			name: "ecall",
 			args: args{
-				opcode: 0b0001111,
+				opcode: 0b1110011,
 				funct3: 0b000,
-			},
-			want: IType,
-		},
-		{
-			name: "fence.i",
-			args: args{
-				opcode: 0b0001111,
-				funct3: 0b001,
 			},
 			want: IType,
 		},

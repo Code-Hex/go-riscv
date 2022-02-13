@@ -36,6 +36,36 @@ const (
 	JType InstFormat = "J"
 )
 
+const (
+	// OPLOAD represent opcode for load operations.
+	// LB, LH, LW...
+	OPLOAD = 0b0000011
+	// OPIMM represent opcode for operations are using immediate.
+	// ADDI, SLTI, SLTIU...
+	OPIMM = 0b0010011
+	// OPAUIPC represent opcode for AUIPC.
+	OPAUIPC = 0b0010111
+	// OPSTORE represent opcode for store operations.
+	// SB, SH, SW...
+	OPSTORE = 0b0100011
+	// OPREG represent opcode for operations are using any registers.
+	// ADD, SUB, SLL...
+	OPREG = 0b0110011
+	// OPLUI represent opcode for LUI.
+	OPLUI = 0b0110111
+	// OPBRANCH represent opcode for conditional operations.
+	// BEQ, BNE, BLT...
+	OPBRANCH = 0b1100011
+	// OPJALR represent opcode for JALR.
+	OPJALR = 0b1100111
+	// OPJAL represent opcode for JAL.
+	OPJAL = 0b1101111
+	// OPSYSTEM represent opcode for operations to access system functionality.
+	// ECALL, EBREAK...
+	// see: 2.8 Control and Status Register Instructions
+	OPSYSTEM = 0b1110011
+)
+
 // Chapter 19. RV32/64G Instruction Set Listings
 // And I referenced https://guillaume-savaton-eseo.github.io/emulsiV/doc/
 //
@@ -57,17 +87,17 @@ const (
 func detectInstructionFormat(opcode, funct3 uint32) InstFormat {
 	// RV32I Base Instruction Set
 	switch opcode {
-	case 0b0110011: // in RV32I Base Instruction Set
+	case OPREG: // in RV32I Base Instruction Set
 		return RType
-	case 0b1100111, 0b0000011, 0b0010011, 0b0001111:
+	case OPLOAD, OPIMM, OPJALR, OPSYSTEM:
 		return IType
-	case 0b0100011:
+	case OPSTORE:
 		return SType
-	case 0b1100011:
+	case OPBRANCH:
 		return BType
-	case 0b0110111, 0b0010111: // LUI, AUIPC
+	case OPLUI, OPAUIPC:
 		return UType
-	case 0b1101111: // JAL
+	case OPJAL: // JAL
 		return JType
 	}
 
