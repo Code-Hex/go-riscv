@@ -13,11 +13,11 @@ import (
 func TestCPU(t *testing.T) {
 	cases := []struct {
 		name      string
-		wantXregs [32]uint64
+		wantXregs [32]uint32
 	}{
 		{
 			name: "add-addi",
-			wantXregs: [32]uint64{
+			wantXregs: [32]uint32{
 				2:  dramSize,
 				29: 5,
 				30: 37,

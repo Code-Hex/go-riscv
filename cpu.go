@@ -12,7 +12,7 @@ import (
 type CPU struct {
 	// 32 64-bit integer registers.
 	// RV32I, RV64I
-	xregs [32]uint64
+	xregs [32]uint32
 	// Program counter to hold the dram address of the
 	// next instruction that would be executed
 	pc     uint64
@@ -24,8 +24,9 @@ type CPU struct {
 const dramSize = 1024 * 1024 * 128 // (128MiB).
 
 func NewCPU(code []byte) *CPU {
-	regs := [32]uint64{}
-	regs[2] = dramSize
+	regs := [32]uint32{
+		2: dramSize,
+	}
 	return &CPU{
 		xregs: regs,
 		pc:    0,
@@ -90,10 +91,9 @@ func (c *CPU) Execute(inst *Instruction) {
 	// Chapter 19 RV32/64G Instruction Set Listings
 	switch opcode {
 	case 0b0010011: // addi
-		imm := (inst.raw & 0xfff00000) >> 20
-		c.xregs[rd] = c.xregs[rs1] | uint64(imm)
+		c.xregs[rd] = c.xregs[rs1] | inst.imm
 	case 0x33: // add
-		c.xregs[rd] = c.xregs[rs1] + uint64(c.xregs[rs2])
+		c.xregs[rd] = c.xregs[rs1] + c.xregs[rs2]
 	default:
 		panic(fmt.Sprintf("unimplemented opcode: %d", opcode))
 
@@ -113,7 +113,7 @@ func (c *CPU) DumpRegisters() {
 	for i, xreg := range c.xregs {
 		table.Append([]string{
 			xregsABINames[i],
-			strconv.FormatUint(xreg, 10),
+			strconv.FormatUint(uint64(xreg), 10),
 			fmt.Sprintf("0x%08x", xreg),
 			fmt.Sprintf("0b%032b", xreg),
 		})
