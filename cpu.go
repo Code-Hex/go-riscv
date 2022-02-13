@@ -3,9 +3,12 @@ package riscv
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
+	"github.com/Code-Hex/go-riscv/internal/alu"
+	"github.com/Code-Hex/go-riscv/internal/branch"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -15,10 +18,18 @@ type CPU struct {
 	xregs [32]uint32
 	// Program counter to hold the dram address of the
 	// next instruction that would be executed
-	pc     uint64
-	nextpc uint64
+	pc     uint32
+	nextpc uint32
 	// Computer dram to store executable instructions.
 	dram []byte
+
+	debug bool
+}
+
+func (c *CPU) debugf(format string, v ...interface{}) {
+	if c.debug {
+		log.Printf(format, v...)
+	}
 }
 
 const dramSize = 1024 * 1024 * 128 // (128MiB).
@@ -37,7 +48,7 @@ func NewCPU(code []byte) *CPU {
 func (c *CPU) Next() bool {
 	c.pc = c.nextpc
 	c.nextpc += 4
-	return c.pc < uint64(len(c.dram))
+	return c.pc < uint32(len(c.dram))
 }
 
 func (c *CPU) Run() {
@@ -83,21 +94,167 @@ func (c *CPU) Decode(rawInst uint32) *Instruction {
 func (c *CPU) Execute(inst *Instruction) {
 	c.xregs[0] = 0
 
-	opcode := inst.opcode
 	rd := inst.rd
 	rs1 := inst.rs1
 	rs2 := inst.rs2
 
 	// Chapter 19 RV32/64G Instruction Set Listings
-	switch opcode {
-	case 0b0010011: // addi
-		c.xregs[rd] = c.xregs[rs1] | inst.imm
-	case 0x33: // add
-		c.xregs[rd] = c.xregs[rs1] + c.xregs[rs2]
-	default:
-		panic(fmt.Sprintf("unimplemented opcode: %d", opcode))
-
+	switch inst.opcode {
+	case OPIMM:
+		switch inst.funct3 {
+		case 0b000:
+			c.debugf("addi rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.ADD, c.xregs[rs1], inst.imm)
+			return
+		case 0b001:
+			c.debugf("slli rd, rs1=%d, shamt=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.SLL, c.xregs[rs1], inst.imm)
+			return
+		case 0b101:
+			switch inst.funct7 {
+			case 0b0000000:
+				c.debugf("srli rd, rs1=%d, shamt=%d", c.xregs[rs1], inst.imm)
+				c.xregs[rd] = alu.Compute(alu.SRL, c.xregs[rs1], inst.imm)
+				return
+			case 0b0100000:
+				shamt := SignedExtend(inst.imm, 4) // shamt ~ 4 bit range
+				c.debugf("srai rd, rs1=%d, shamt=%d", c.xregs[rs1], shamt)
+				c.xregs[rd] = alu.Compute(alu.SRA, c.xregs[rs1], shamt)
+				return
+			}
+		case 0b010:
+			c.debugf("slti rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.SLT, c.xregs[rs1], inst.imm)
+			return
+		case 0b011:
+			c.debugf("sltiu rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.SLTU, c.xregs[rs1], inst.imm)
+			return
+		case 0b100:
+			c.debugf("xori rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.XOR, c.xregs[rs1], inst.imm)
+			return
+		case 0b110:
+			c.debugf("ori rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.OR, c.xregs[rs1], inst.imm)
+			return
+		case 0b111:
+			c.debugf("andi rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
+			c.xregs[rd] = alu.Compute(alu.AND, c.xregs[rs1], inst.imm)
+			return
+		}
+	case OPREG:
+		switch inst.funct3 {
+		case 0b000:
+			switch inst.funct7 {
+			case 0b0000000:
+				c.debugf("add rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+				c.xregs[rd] = alu.Compute(alu.ADD, c.xregs[rs1], c.xregs[rs2])
+				return
+			case 0b0100000:
+				c.debugf("sub rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+				c.xregs[rd] = alu.Compute(alu.SUB, c.xregs[rs1], c.xregs[rs2])
+				return
+			}
+		case 0b001:
+			c.debugf("sll rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.SLL, c.xregs[rs1], c.xregs[rs2])
+			return
+		case 0b010:
+			c.debugf("slt rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.SLT, c.xregs[rs1], c.xregs[rs2])
+			return
+		case 0b011:
+			c.debugf("sltu rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.SLTU, c.xregs[rs1], c.xregs[rs2])
+			return
+		case 0b100:
+			c.debugf("xor rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.XOR, c.xregs[rs1], c.xregs[rs2])
+			return
+		case 0b101:
+			switch inst.funct7 {
+			case 0b0000000:
+				c.debugf("srl rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+				c.xregs[rd] = alu.Compute(alu.SRL, c.xregs[rs1], c.xregs[rs2])
+				return
+			case 0b0100000:
+				c.debugf("sra rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+				c.xregs[rd] = alu.Compute(alu.SRA, c.xregs[rs1], c.xregs[rs2])
+				return
+			}
+		case 0b110:
+			c.debugf("or rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.OR, c.xregs[rs1], c.xregs[rs2])
+			return
+		case 0b111:
+			c.debugf("and rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
+			c.xregs[rd] = alu.Compute(alu.AND, c.xregs[rs1], c.xregs[rs2])
+			return
+		}
+	case OPAUIPC:
+		c.debugf("auipc rd, imm=%d", inst.imm)
+		c.xregs[rd] = alu.Compute(alu.ADD, c.pc, inst.imm)
+		return
+	case OPLUI:
+		c.debugf("lui rd, imm=%d", inst.imm)
+		c.xregs[rd] = inst.imm
+		return
+	case OPJAL:
+		c.debugf("jal rd, offset=%d", inst.imm)
+		c.xregs[rd] = c.pc + 4
+		c.pc += inst.imm
+		return
+	case OPJALR:
+		c.debugf("jalr rd, rs1=%d, offset=%d", c.xregs[rs1], inst.imm)
+		t := c.pc + 4
+		c.xregs[rd] = t
+		c.pc = (c.xregs[rs1] + inst.imm) &^ 1
+		return
+	case OPBRANCH:
+		switch inst.funct3 {
+		case 0b000:
+			c.debugf("beq rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.EQ, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		case 0b001:
+			c.debugf("bne rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.NE, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		case 0b100:
+			c.debugf("blt rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.LT, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		case 0b101:
+			c.debugf("bge rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.GE, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		case 0b110:
+			c.debugf("bltu rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.LTU, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		case 0b111:
+			c.debugf("bgeu rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			if branch.Comparator(branch.GEU, c.xregs[rs1], c.xregs[rs2]) {
+				c.pc += inst.imm
+			}
+			return
+		}
+	case OPLOAD:
+	case OPSTORE:
+	case OPSYSTEM:
 	}
+	panic(fmt.Sprintf("unimplemented opcode: %d", inst.opcode))
 }
 
 func (c *CPU) DumpRegisters() {
