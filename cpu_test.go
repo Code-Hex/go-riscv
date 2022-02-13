@@ -54,14 +54,14 @@ func TestSignExtend(t *testing.T) {
 	}
 	cases := []struct {
 		args args
-		want int32
+		want uint32
 	}{
 		{
 			args: args{
 				a:       0b11110110, // 8bit, -10
 				bitSize: 8,
 			},
-			want: -10,
+			want: math.MaxUint32 - 10 + 1,
 		},
 		{
 			args: args{
@@ -75,7 +75,7 @@ func TestSignExtend(t *testing.T) {
 				a:       0b1110_00111000, // 12bit, -456
 				bitSize: 12,
 			},
-			want: -456, // 0b0001_11000111 + 1 == 0b0001_11001000
+			want: math.MaxUint32 - 456 + 1, // 0b0001_11000111 + 1 == 0b0001_11001000
 		},
 		{
 			args: args{
@@ -89,14 +89,14 @@ func TestSignExtend(t *testing.T) {
 				a:       0b10000000_00000000_00000000_00000000, // 32bit, min int32
 				bitSize: 32,
 			},
-			want: math.MinInt32,
+			want: 0b10000000_00000000_00000000_00000000,
 		},
 		{
 			args: args{
 				a:       0b00000000_00000000_00000000_10000000,
 				bitSize: 8,
 			},
-			want: math.MinInt8,
+			want: math.MaxUint32 - math.MaxInt8,
 		},
 		{
 			args: args{
@@ -110,11 +110,81 @@ func TestSignExtend(t *testing.T) {
 		tc := tc
 		name := fmt.Sprintf("(%#v)", tc.args)
 		t.Run(name, func(t *testing.T) {
-			got := SignExtend(tc.args.a, tc.args.bitSize)
+			got := SignedExtend(tc.args.a, tc.args.bitSize)
 			if tc.want != got {
 				t.Errorf("want %d but got %d", tc.want, got)
 			}
 		})
 	}
+}
 
+func TestUnSignedExtend(t *testing.T) {
+	type args struct {
+		a       uint32
+		bitSize uint32
+	}
+	cases := []struct {
+		args args
+		want uint32
+	}{
+		{
+			args: args{
+				a:       0b11110110,
+				bitSize: 8,
+			},
+			want: 0b11110110,
+		},
+		{
+			args: args{
+				a:       0b00001010,
+				bitSize: 8,
+			},
+			want: 0b00001010,
+		},
+		{
+			args: args{
+				a:       0b1110_00111000, // 12bit
+				bitSize: 8,
+			},
+			want: 0b0000_00111000,
+		},
+		{
+			args: args{
+				a:       math.MaxInt32, // 32bit, max int32
+				bitSize: 32,
+			},
+			want: math.MaxInt32,
+		},
+		{
+			args: args{
+				a:       0b10000000_00000000_00000000_00000000, // 32bit, min int32
+				bitSize: 32,
+			},
+			want: 0b10000000_00000000_00000000_00000000,
+		},
+		{
+			args: args{
+				a:       0b11111111_11111111_11111111_10000000,
+				bitSize: 8,
+			},
+			want: 0b00000000_00000000_00000000_10000000,
+		},
+		{
+			args: args{
+				a:       0,
+				bitSize: 8,
+			},
+			want: 0,
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		name := fmt.Sprintf("(%#v)", tc.args)
+		t.Run(name, func(t *testing.T) {
+			got := UnSignedExtend(tc.args.a, tc.args.bitSize)
+			if tc.want != got {
+				t.Errorf("want %d but got %d", tc.want, got)
+			}
+		})
+	}
 }

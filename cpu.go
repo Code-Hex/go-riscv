@@ -15,7 +15,8 @@ type CPU struct {
 	xregs [32]uint64
 	// Program counter to hold the dram address of the
 	// next instruction that would be executed
-	pc uint64
+	pc     uint64
+	nextpc uint64
 	// Computer dram to store executable instructions.
 	dram []byte
 }
@@ -32,8 +33,14 @@ func NewCPU(code []byte) *CPU {
 	}
 }
 
+func (c *CPU) Next() bool {
+	c.pc = c.nextpc
+	c.nextpc += 4
+	return c.pc < uint64(len(c.dram))
+}
+
 func (c *CPU) Run() {
-	for c.pc < uint64(len(c.dram)) {
+	for c.Next() {
 		// 1. Fetch.
 		inst := c.Fetch()
 		// 2. Decode.
@@ -47,9 +54,7 @@ func (c *CPU) Run() {
 //
 // see: https://book.rvemu.app/hardware-components/01-cpu.html#fetch-stage
 func (c *CPU) Fetch() uint32 {
-	current := c.pc
-	c.pc += 4
-	return binary.LittleEndian.Uint32(c.dram[current:c.pc])
+	return binary.LittleEndian.Uint32(c.dram[c.pc:c.nextpc])
 }
 
 func (c *CPU) Decode(rawInst uint32) *Instruction {
@@ -57,25 +62,20 @@ func (c *CPU) Decode(rawInst uint32) *Instruction {
 	//
 	// The RISC-V ISA keeps the source (rs1 and rs2) and destination (rd) registers
 	// at the same position
+	opcode := rawInst & 0b1111111
+	funct3 := (rawInst >> 12) & 0b111
+	fotmat := detectInstructionFormat(opcode, funct3)
 	return &Instruction{
 		raw:    rawInst,
-		opcode: rawInst & 0x7f,         // bits 0 to 6
-		rd:     (rawInst >> 7) & 0x1f,  // bits 7 to 11
-		funct3: (rawInst >> 12) & 0x1f, // bits 12 to 14
-		rs1:    (rawInst >> 15) & 0x1f, // bits 15 to 19
-		rs2:    (rawInst >> 20) & 0x1f, // bits 20 to 24
-		funct7: (rawInst >> 20) & 0x1f, // bits 25 to 31
+		opcode: opcode,                      // bits 0 to 6
+		rd:     (rawInst >> 7) & 0b11111,    // bits 7 to 11
+		funct3: funct3,                      // bits 12 to 14
+		rs1:    (rawInst >> 15) & 0b11111,   // bits 15 to 19
+		rs2:    (rawInst >> 20) & 0b11111,   // bits 20 to 24
+		funct7: (rawInst >> 25) & 0b1111111, // bits 25 to 31
+		format: fotmat,
+		imm:    decodeImmediate(rawInst, fotmat),
 	}
-}
-
-type Instruction struct {
-	raw    uint32
-	opcode uint32
-	rd     uint32
-	funct3 uint32
-	rs1    uint32
-	rs2    uint32
-	funct7 uint32
 }
 
 // Execute performs the action required by the instruction.
@@ -122,8 +122,14 @@ func (c *CPU) DumpRegisters() {
 	fmt.Println(buf.String())
 }
 
-// SignedExtend assumes value to be bits length and sign extends to 32 bit
-func SignExtend(value, bitSize uint32) int32 {
+// SignedExtend extends value to be bits length as signed to 32 bit
+func SignedExtend(value, bitSize uint32) uint32 {
 	tmp := 32 - bitSize
-	return int32(value) << tmp >> tmp
+	return uint32(int32(value) << tmp >> tmp)
+}
+
+// UnSignedExtend extends value to be bits length as unsigned to 32 bit
+func UnSignedExtend(value, bitSize uint32) uint32 {
+	tmp := 32 - bitSize
+	return value << tmp >> tmp
 }
