@@ -9,6 +9,15 @@
 - [RISC-V ELF psABI](https://github.com/riscv-non-isa/riscv-elf-psabi-doc)
 - [riscv-emu (Go)](https://github.com/LMMilewski/riscv-emu)
 - [RISC-V Instruction Formats](https://inst.eecs.berkeley.edu/~cs61c/resources/su18_lec/Lecture7.pdf)
+- [github.com/johnwinans/rvalp - RISC-V Assemly Language Programming](https://github.com/johnwinans/rvalp)
+- [Writing a simple RISC-V emulator in plain C](https://fmash16.github.io/content/posts/riscv-emulator-in-c.html)
+- Japanese
+  - [RISC-Vを実装してみる](https://kamiyaowl.github.io/presentation/pdf/lets-impl-rv32i.pdf)
+
+## Install tool-chain
+
+- macOS should install using homebrew.
+  - see: https://github.com/riscv-software-src/homebrew-riscv
 
 ### Instructions
 
