@@ -28,7 +28,7 @@ func TestCPU(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			filename := filepath.Join("testdata", tc.name+".bin")
+			filename := filepath.Join("testdata", tc.name, tc.name+".bin")
 			code, err := os.ReadFile(filename)
 			if err != nil {
 				t.Fatal(err)
