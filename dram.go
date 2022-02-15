@@ -8,9 +8,13 @@ type DRAM struct {
 
 var _ Device = (*DRAM)(nil)
 
-func NewDRAM(size int) *DRAM {
+const dramStartAddress = 0x80000000
+
+func NewDRAM(code []byte, size int) *DRAM {
+	mem := make([]byte, len(code))
+	copy(mem, code)
 	return &DRAM{
-		mem: make([]byte, size),
+		mem: mem,
 	}
 }
 
@@ -20,7 +24,7 @@ func (d *DRAM) Read(addr, size uint32) uint32 {
 	var result uint32
 	for i := uint32(0); i < size; i++ {
 		idx := int(addr + i)
-		result |= uint32(d.mem[idx] << (8 * i))
+		result |= uint32(d.mem[idx]) << (8 * i)
 	}
 	return result
 }
@@ -35,7 +39,7 @@ func (d *DRAM) Write(addr, size, value uint32) {
 }
 
 // StartAddr represents start address for DRAM.
-func (d *DRAM) StartAddr() uint32 { return 0x80000000 }
+func (d *DRAM) StartAddr() uint32 { return dramStartAddress }
 
 // EndAddr represents end of address for DRAM.
 func (d *DRAM) EndAddr() uint32 { return d.StartAddr() + uint32(len(d.mem)) }

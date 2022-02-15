@@ -58,16 +58,30 @@ type Device interface {
 //     [VIRT_DRAM] =        { 0x80000000,           0x0 },
 // };
 type Bus struct {
-	devices []Device
+	devices   []Device
+	limitAddr uint32
 }
 
 func NewBus(devices ...Device) *Bus {
-	return &Bus{devices: devices}
+	var limitAddr uint32
+	for _, device := range devices {
+		if device.EndAddr() > limitAddr {
+			limitAddr = device.EndAddr()
+		}
+	}
+	return &Bus{
+		devices:   devices,
+		limitAddr: limitAddr,
+	}
+}
+
+func (b *Bus) IsValidAddr(addr uint32) bool {
+	return addr <= b.limitAddr
 }
 
 func (b *Bus) findDevice(addr, size uint32) (Device, error) {
+	useAddrLen := addr + size - 1
 	for _, dev := range b.devices {
-		useAddrLen := addr + size - 1
 		if dev.StartAddr() <= addr && useAddrLen <= dev.EndAddr() {
 			return dev, nil
 		}
@@ -80,7 +94,7 @@ func (b *Bus) Read(addr, size uint32) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	return device.Read(addr, size), nil
+	return device.Read(addr-device.StartAddr(), size), nil
 }
 
 func (b *Bus) Write(addr, size, value uint32) error {
@@ -88,6 +102,6 @@ func (b *Bus) Write(addr, size, value uint32) error {
 	if err != nil {
 		return err
 	}
-	device.Write(addr, size, value)
+	device.Write(addr-device.StartAddr(), size, value)
 	return nil
 }

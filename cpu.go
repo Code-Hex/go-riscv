@@ -1,7 +1,6 @@
 package riscv
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"strconv"
@@ -20,8 +19,7 @@ type CPU struct {
 	// next instruction that would be executed
 	pc     uint32
 	nextpc uint32
-	// Computer dram to store executable instructions.
-	dram []byte
+	bus    *Bus
 
 	debug bool
 }
@@ -35,38 +33,44 @@ func (c *CPU) debugf(format string, v ...interface{}) {
 const dramSize = 1024 * 1024 * 128 // (128MiB).
 
 func NewCPU(code []byte) *CPU {
+	dram := NewDRAM(code, dramSize)
 	regs := [32]uint32{
-		2: dramSize,
+		2: dram.StartAddr() + dramSize, // set stack pointer.
 	}
 	return &CPU{
-		xregs: regs,
-		pc:    0,
-		dram:  code,
+		xregs:  regs,
+		pc:     0,
+		nextpc: dram.StartAddr(),
+		bus:    NewBus(dram),
 	}
 }
 
 func (c *CPU) Next() bool {
 	c.pc = c.nextpc
 	c.nextpc += 4
-	return c.pc < uint32(len(c.dram))
+	return c.bus.IsValidAddr(c.nextpc)
 }
 
-func (c *CPU) Run() {
+func (c *CPU) Run() error {
 	for c.Next() {
 		// 1. Fetch.
-		inst := c.Fetch()
+		inst, err := c.Fetch()
+		if err != nil {
+			return err
+		}
 		// 2. Decode.
 		decoded := c.Decode(inst)
 		// 3. Execute.
 		c.Execute(decoded)
 	}
+	return nil
 }
 
 // Fetch reads the next instruction to be executed from the memory where the program is stored.
 //
 // see: https://book.rvemu.app/hardware-components/01-cpu.html#fetch-stage
-func (c *CPU) Fetch() uint32 {
-	return binary.LittleEndian.Uint32(c.dram[c.pc:c.nextpc])
+func (c *CPU) Fetch() (uint32, error) {
+	return c.bus.Read(c.pc, 4) // 4 * 8 bit == 32 bit
 }
 
 func (c *CPU) Decode(rawInst uint32) *Instruction {

@@ -18,7 +18,7 @@ func TestCPU(t *testing.T) {
 		{
 			name: "add-addi",
 			wantXregs: [32]uint32{
-				2:  dramSize,
+				2:  dramStartAddress + dramSize,
 				29: 5,
 				30: 37,
 				31: 42,
@@ -34,7 +34,9 @@ func TestCPU(t *testing.T) {
 				t.Fatal(err)
 			}
 			cpu := NewCPU(code)
-			cpu.Run()
+			if err := cpu.Run(); err != nil {
+				t.Fatal(err)
+			}
 
 			// if tc.name == "want" {
 			// 	cpu.DumpRegisters()
