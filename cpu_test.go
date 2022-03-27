@@ -10,43 +10,91 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func Int32ToUint32(v int32) uint32 {
+	return uint32(v)
+}
+
 func TestCPU(t *testing.T) {
-	cases := []struct {
-		name      string
-		wantXregs [32]uint32
-	}{
-		{
-			name: "add-addi",
-			wantXregs: [32]uint32{
-				2:  dramStartAddress + dramSize,
-				29: 5,
-				30: 37,
-				31: 42,
+	t.Run("binary data", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			code      []byte
+			wantXregs [32]uint32
+		}{
+			{
+				name: "lb rd offset rs1",
+				code: []byte{
+					0x13, 0x08, 0x50, 0x00, // addi x16, x0, 5
+					0x93, 0x08, 0x30, 0x00, // addi x17, x0, 3
+					0x03, 0x09, 0x40, 0x00, // lb x18, 4(x0)
+				},
+				wantXregs: [32]uint32{
+					2:  dramStartAddress + dramSize,
+					15: 0,
+					16: 5,
+					17: 3,
+					18: Int32ToUint32(-109),
+				},
 			},
-		},
-	}
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			filename := filepath.Join("testdata", tc.name, tc.name+".bin")
-			code, err := os.ReadFile(filename)
-			if err != nil {
-				t.Fatal(err)
-			}
-			cpu := NewCPU(code)
-			if err := cpu.Run(); err != nil {
-				t.Fatal(err)
-			}
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				cpu := NewCPU(tc.code)
+				cpu.debug = true
+				if err := cpu.Run(); err != nil {
+					t.Fatal(err)
+				}
 
-			// if tc.name == "want" {
-			// 	cpu.DumpRegisters()
-			// }
+				// if tc.name == "want" {
+				// 	cpu.DumpRegisters()
+				// }
 
-			if diff := cmp.Diff(tc.wantXregs, cpu.xregs); diff != "" {
-				t.Fatalf("(-want, +got)\n%s", diff)
-			}
-		})
-	}
+				if diff := cmp.Diff(tc.wantXregs, cpu.xregs); diff != "" {
+					t.Fatalf("(-want, +got)\n%s", diff)
+				}
+			})
+		}
+	})
+
+	t.Run("read bin files", func(t *testing.T) {
+		cases := []struct {
+			name      string
+			wantXregs [32]uint32
+		}{
+			{
+				name: "add-addi",
+				wantXregs: [32]uint32{
+					2:  dramStartAddress + dramSize,
+					29: 5,
+					30: 37,
+					31: 42,
+				},
+			},
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				filename := filepath.Join("testdata", tc.name, tc.name+".bin")
+				code, err := os.ReadFile(filename)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cpu := NewCPU(code)
+				if err := cpu.Run(); err != nil {
+					t.Fatal(err)
+				}
+
+				// if tc.name == "want" {
+				// 	cpu.DumpRegisters()
+				// }
+
+				if diff := cmp.Diff(tc.wantXregs, cpu.xregs); diff != "" {
+					t.Fatalf("(-want, +got)\n%s", diff)
+				}
+			})
+		}
+	})
 }
 
 func TestSignExtend(t *testing.T) {

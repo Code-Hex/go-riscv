@@ -61,7 +61,9 @@ func (c *CPU) Run() error {
 		// 2. Decode.
 		decoded := c.Decode(inst)
 		// 3. Execute.
-		c.Execute(decoded)
+		if err := c.Execute(decoded); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -95,7 +97,7 @@ func (c *CPU) Decode(rawInst uint32) *Instruction {
 }
 
 // Execute performs the action required by the instruction.
-func (c *CPU) Execute(inst *Instruction) {
+func (c *CPU) Execute(inst *Instruction) error {
 	c.xregs[0] = 0
 
 	rd := inst.rd
@@ -109,43 +111,43 @@ func (c *CPU) Execute(inst *Instruction) {
 		case 0b000:
 			c.debugf("addi rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.ADD, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b001:
 			c.debugf("slli rd, rs1=%d, shamt=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.SLL, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b101:
 			switch inst.funct7 {
 			case 0b0000000:
 				c.debugf("srli rd, rs1=%d, shamt=%d", c.xregs[rs1], inst.imm)
 				c.xregs[rd] = alu.Compute(alu.SRL, c.xregs[rs1], inst.imm)
-				return
+				return nil
 			case 0b0100000:
 				shamt := SignedExtend(inst.imm, 4) // shamt ~ 4 bit range
 				c.debugf("srai rd, rs1=%d, shamt=%d", c.xregs[rs1], shamt)
 				c.xregs[rd] = alu.Compute(alu.SRA, c.xregs[rs1], shamt)
-				return
+				return nil
 			}
 		case 0b010:
 			c.debugf("slti rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.SLT, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b011:
 			c.debugf("sltiu rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.SLTU, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b100:
 			c.debugf("xori rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.XOR, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b110:
 			c.debugf("ori rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.OR, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		case 0b111:
 			c.debugf("andi rd, rs1=%d, imm=%d", c.xregs[rs1], inst.imm)
 			c.xregs[rd] = alu.Compute(alu.AND, c.xregs[rs1], inst.imm)
-			return
+			return nil
 		}
 	case OPREG:
 		switch inst.funct3 {
@@ -154,67 +156,67 @@ func (c *CPU) Execute(inst *Instruction) {
 			case 0b0000000:
 				c.debugf("add rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 				c.xregs[rd] = alu.Compute(alu.ADD, c.xregs[rs1], c.xregs[rs2])
-				return
+				return nil
 			case 0b0100000:
 				c.debugf("sub rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 				c.xregs[rd] = alu.Compute(alu.SUB, c.xregs[rs1], c.xregs[rs2])
-				return
+				return nil
 			}
 		case 0b001:
 			c.debugf("sll rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.SLL, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		case 0b010:
 			c.debugf("slt rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.SLT, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		case 0b011:
 			c.debugf("sltu rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.SLTU, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		case 0b100:
 			c.debugf("xor rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.XOR, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		case 0b101:
 			switch inst.funct7 {
 			case 0b0000000:
 				c.debugf("srl rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 				c.xregs[rd] = alu.Compute(alu.SRL, c.xregs[rs1], c.xregs[rs2])
-				return
+				return nil
 			case 0b0100000:
 				c.debugf("sra rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 				c.xregs[rd] = alu.Compute(alu.SRA, c.xregs[rs1], c.xregs[rs2])
-				return
+				return nil
 			}
 		case 0b110:
 			c.debugf("or rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.OR, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		case 0b111:
 			c.debugf("and rd, rs1=%d, rs2=%d", c.xregs[rs1], c.xregs[rs2])
 			c.xregs[rd] = alu.Compute(alu.AND, c.xregs[rs1], c.xregs[rs2])
-			return
+			return nil
 		}
 	case OPAUIPC:
 		c.debugf("auipc rd, imm=%d", inst.imm)
 		c.xregs[rd] = alu.Compute(alu.ADD, c.pc, inst.imm)
-		return
+		return nil
 	case OPLUI:
 		c.debugf("lui rd, imm=%d", inst.imm)
 		c.xregs[rd] = inst.imm
-		return
+		return nil
 	case OPJAL:
 		c.debugf("jal rd, offset=%d", inst.imm)
 		c.xregs[rd] = c.pc + 4
 		c.pc += inst.imm
-		return
+		return nil
 	case OPJALR:
 		c.debugf("jalr rd, rs1=%d, offset=%d", c.xregs[rs1], inst.imm)
 		t := c.pc + 4
 		c.xregs[rd] = t
 		c.pc = (c.xregs[rs1] + inst.imm) &^ 1
-		return
+		return nil
 	case OPBRANCH:
 		switch inst.funct3 {
 		case 0b000:
@@ -222,43 +224,118 @@ func (c *CPU) Execute(inst *Instruction) {
 			if branch.Comparator(branch.EQ, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		case 0b001:
 			c.debugf("bne rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
 			if branch.Comparator(branch.NE, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		case 0b100:
 			c.debugf("blt rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
 			if branch.Comparator(branch.LT, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		case 0b101:
 			c.debugf("bge rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
 			if branch.Comparator(branch.GE, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		case 0b110:
 			c.debugf("bltu rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
 			if branch.Comparator(branch.LTU, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		case 0b111:
 			c.debugf("bgeu rs1=%d, rs2=%d, offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
 			if branch.Comparator(branch.GEU, c.xregs[rs1], c.xregs[rs2]) {
 				c.pc += inst.imm
 			}
-			return
+			return nil
 		}
 	case OPLOAD:
+		// The suffix in load and store instructions mean the size of bits.
+		// - b: a byte (8 bits)
+		// - h: a half word (16 bits)
+		// - w: a word (32 bits)
+		// - d: a double word (64 bits)
+		// The effective byte address is obtained by adding register
+		// rs1 to the sign-extended 12-bit offset.
+		addr := alu.Compute(alu.ADD, c.xregs[rs1], inst.imm)
+		switch inst.funct3 {
+		case 0b000:
+			c.debugf("lb rs1=%d offset=%d", c.xregs[rs1], inst.imm)
+			load, err := c.bus.Read(addr, 1) // 8 bit
+			if err != nil {
+				return fmt.Errorf("error in lb: %w", err)
+			}
+			c.xregs[rd] = SignedExtend(load, 8)
+			return nil
+		case 0b001:
+			c.debugf("lh rs1=%d offset=%d", c.xregs[rs1], inst.imm)
+			load, err := c.bus.Read(addr, 2) // 16 bit
+			if err != nil {
+				return fmt.Errorf("error in lh: %w", err)
+			}
+			c.xregs[rd] = SignedExtend(load, 16)
+			return nil
+		case 0b010:
+			c.debugf("lw rs1=%d offset=%d", c.xregs[rs1], inst.imm)
+			load, err := c.bus.Read(addr, 4) // 32 bit
+			if err != nil {
+				return fmt.Errorf("error in lw: %w", err)
+			}
+			c.xregs[rd] = SignedExtend(load, 32)
+			return nil
+		case 0b100:
+			c.debugf("lbu rs1=%d offset=%d", c.xregs[rs1], inst.imm)
+			load, err := c.bus.Read(addr, 1) // 8 bit
+			if err != nil {
+				return fmt.Errorf("error in lbu: %w", err)
+			}
+			c.xregs[rd] = UnSignedExtend(load, 8)
+			return nil
+		case 0b101:
+			c.debugf("lhu rs1=%d offset=%d", c.xregs[rs1], inst.imm)
+			load, err := c.bus.Read(addr, 2) // 16 bit
+			if err != nil {
+				return fmt.Errorf("error in lhu: %w", err)
+			}
+			c.xregs[rd] = UnSignedExtend(load, 16)
+			return nil
+		}
 	case OPSTORE:
+		// The same as Load operation
+		addr := alu.Compute(alu.ADD, c.xregs[rs1], inst.imm)
+		switch inst.funct3 {
+		case 0b000:
+			c.debugf("sb rs1=%d rs2=%d offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			err := c.bus.Write(addr, 1, UnSignedExtend(c.xregs[rs2], 8))
+			if err != nil {
+				return fmt.Errorf("error in sb: %w", err)
+			}
+			return nil
+		case 0b001:
+			c.debugf("sh rs1=%d rs2=%d offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			err := c.bus.Write(addr, 2, UnSignedExtend(c.xregs[rs2], 16))
+			if err != nil {
+				return fmt.Errorf("error in sh: %w", err)
+			}
+			return nil
+		case 0b010:
+			c.debugf("sw rs1=%d rs2=%d offset=%d", c.xregs[rs1], c.xregs[rs2], inst.imm)
+			err := c.bus.Write(addr, 4, c.xregs[rs2])
+			if err != nil {
+				return fmt.Errorf("error in sw: %w", err)
+			}
+			return nil
+		}
 	case OPSYSTEM:
 	}
-	panic(fmt.Sprintf("unimplemented opcode: %d", inst.opcode))
+	return fmt.Errorf("unimplemented opcode: %d", inst.opcode)
 }
 
 func (c *CPU) DumpRegisters() {
